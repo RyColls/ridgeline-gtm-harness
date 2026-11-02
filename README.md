@@ -1,6 +1,7 @@
 # Ridgeline GTM Harness
 
-**👉 [Open the deliverable](https://claude.ai/artifact/7YodKDcXurNmL8Mra5NQST)**: the full submission as one web page. Start with the **Start here** tab.
+**👉 [Open the deliverable](https://rycolls.github.io/ridgeline-gtm-harness/)**: the full submission as one web page. Start with the **Start here** tab.
+GitHub shows `.html` files as code instead of rendering them, so use that link. The page source is [`docs/index.html`](docs/index.html).
 
 Domestique GTM Engineer take-home. One web app holds the whole submission:
 
