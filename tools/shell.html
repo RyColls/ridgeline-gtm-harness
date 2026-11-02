@@ -56,6 +56,7 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
     return v;
   };
   var current = null;
+  window.goView = function (h) { try { history.pushState(null, '', '#' + h); } catch (err) {} show(); };
   function show() {
     var h = decodeURIComponent((location.hash || '').slice(1));
     var target = null, view = h;
@@ -73,6 +74,17 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
     if (target) { target.scrollIntoView(); } else { window.scrollTo(0, 0); }
   }
   window.addEventListener('hashchange', show);
+  // Handle in-page links directly, so navigation works even where the host frame
+  // doesn't report hash changes.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[href^="#"]');
+    if (!a) return;
+    e.preventDefault();
+    var h = a.getAttribute('href');
+    try { history.pushState(null, '', h); } catch (err) {}
+    show();
+  });
+  window.addEventListener('popstate', show);
   show();
 
   // Rep feedback: kept in this browser only (the live app writes it to SQLite).

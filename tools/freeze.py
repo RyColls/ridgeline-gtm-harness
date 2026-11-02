@@ -47,6 +47,9 @@ def slug(s):
 
 def route_to_hash(path):
     path = html.unescape(path)
+    m = re.match(r"^/[a-z]+#([a-z0-9-]+)$", path)
+    if m:
+        return m.group(1)  # anchor inside a view, e.g. /design#reframe -> #reframe
     if path in ("/", ""):
         return "command"
     m = re.match(r"^/lead/(L-\d+)(#.*)?$", path)
@@ -74,7 +77,7 @@ def rewrite_links(body):
 
     def onclick(m):
         h = route_to_hash(m.group(1))
-        return f"onclick=\"location.hash='{h}'\"" if h else m.group(0)
+        return f"onclick=\"goView('{h}')\"" if h else m.group(0)
     return re.sub(r"onclick=\"location='([^']*)'\"", onclick, body)
 
 
