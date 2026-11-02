@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Outbound review · Ridgeline GTM Harness{% endblock %}
+{% set labels = {'grounding':'Grounding','no_invented_facts':'No invented facts','persona_fit':'Persona fit','format':'Format','similarity':'Similarity to batch'} %}
+{% block body %}
+<div class="head-row">
+  <div>
+    <div class="eyebrow">Outbound review · batch 10/19 · mock outbox</div>
+    <h1 class="page-title"><u>What</u>: gets sent, and what got stopped?</h1>
+    <p class="lede">Every first-touch draft runs through the eval gate before it reaches the sequencer. Mechanical problems are auto-fixed; anything factual is blocked for a human. Nothing blocked gets sent without a rep approving it. Checks are deterministic code; the LLM judge only rules on claims about customers.</p>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(3,auto);gap:22px;text-align:center">
+    <div><div class="page-title" style="font-size:38px;margin:0">{{ counts.get('PASS',0) }}</div><div class="eyebrow" style="color:var(--ink)">Pass</div></div>
+    <div><div class="page-title" style="font-size:38px;margin:0">{{ counts.get('FIXED',0) }}</div><div class="eyebrow" style="color:var(--ink)">Auto-fixed</div></div>
+    <div><div class="page-title" style="font-size:38px;margin:0;color:var(--red)">{{ counts.get('BLOCKED',0) }}</div><div class="eyebrow">Blocked</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Review queue</h2>
+  <div class="tbl-wrap"><table>
+    <tr><th>Contact</th><th>Account</th><th>Tier</th>{% for k in labels %}<th>{{ labels[k] }}</th>{% endfor %}<th>Result</th></tr>
+    {% for x in rows %}
+    <tr class="click {{ 'hl' if x.id == sel.id }}" onclick="location='{{ url_for('outbound', draft_id=x.id) }}'">
+      <td><a href="{{ url_for('outbound', draft_id=x.id) }}">{{ x.account.contact.name }}</a><span class="sub">{{ x.account.contact.title }}</span></td>
+      <td>{{ x.account.company.name }}</td><td><span class="tier {{ x.account.tier }}">{{ x.account.tier }}</span></td>
+      {% for k in labels %}{% set c = x.checks[k] %}
+      <td><span class="pill {{ 'pass' if c.ok else ('fixed' if c.fixable and x.result == 'FIXED' else 'fail') }}">{{ 'pass' if c.ok else ('fixed' if c.fixable and x.result == 'FIXED' else 'fail') }}</span></td>
+      {% endfor %}
+      <td><span class="pill {{ x.result|lower }}">{{ x.result }}</span></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</div>
+
+<div class="grid g-main mt">
+  <div class="card accent">
+    <h2>Draft · {{ sel.account.contact.name }}, {{ sel.account.company.name }} <small class="mono">{{ 'tr_' ~ sel.id }} · first_touch v6</small></h2>
+    {% set claim = sel.draft.judge.claim %}
+        <div class="draft"><span class="subj">Subject: {{ sel.draft.subject }}</span>{{ sel.draft.body|highlight(claim if sel.result == 'BLOCKED' else none) }}</div>
+    {% if sel.fixed_body %}
+    <h3 style="margin-top:16px">After auto-fix</h3>
+    <div class="draft">{{ sel.fixed_body|clean }}</div>
+    {% endif %}
+    <details class="mt"><summary class="note">Draft with the citations the LLM had to include</summary><div class="draft mono" style="font-size:11.5px">{{ sel.draft.body }}</div></details>
+    <div class="btn-row mt">
+      {% if sel.result == 'BLOCKED' %}<span class="btn red">Regenerate without claim</span><span class="btn">Edit and approve</span><span class="btn">Reject</span>
+      {% else %}<span class="btn red">Queued for send</span>{% endif %}
+    </div>
+    <p class="note">Buttons are illustrative in this prototype; the outbox is mocked.</p>
+  </div>
+  <div class="card">
+    <h2>Eval results</h2>
+    {% for k in labels %}{% set c = sel.checks[k] %}
+    <div style="display:flex;gap:10px;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line)">
+      <div><b style="font-size:13px">{{ labels[k] }}</b>{% for d in c.detail %}<div class="note" style="margin:2px 0 0">{{ d }}</div>{% endfor %}</div>
+      <span><span class="pill {{ 'pass' if c.ok else ('fixed' if c.fixable and sel.result == 'FIXED' else 'fail') }}">{{ 'pass' if c.ok else ('fixed' if c.fixable and sel.result == 'FIXED' else 'fail') }}</span></span>
+    </div>
+    {% endfor %}
+    <p class="note">Customer stories the drafts may cite:</p>
+    <ul class="note" style="padding-left:16px">
+      <li><b>coastline</b>: cut empty miles 12%, moved 9 dispatchers off spreadsheets in 90 days.</li>
+      <li><b>ironwood</b>: reduced driver check calls 40% in the first quarter.</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Command center · Ridgeline GTM Harness{% endblock %}
+{% block body %}
+<div class="head-row">
+  <div>
+    <div class="eyebrow">Command center</div>
+    <h1 class="page-title"><u>How</u>: is the harness performing?</h1>
+    <p class="lede">Inbound and outbound run on one enrichment, scoring and CRM spine. The week below is {{ s.total }} simulated form fills (Ridgeline's ~900/month) pushed through the real scoring engine; the 12 named leads are full traces you can open.</p>
+  </div>
+  <div class="btn-row">
+    <a class="btn" href="{{ url_for('lead_new') }}">Submit a test form fill</a>
+    <form class="inline" method="post" action="{{ url_for('reset') }}"><button class="btn red" title="Rebuild the database from seed">Reset demo data</button></form>
+  </div>
+</div>
+
+<div class="grid g5">
+  <div class="kpi hero"><div class="v">{{ s.median_a_min }} min</div><div class="l">Median speed-to-lead, Tier A</div><div class="b">Baseline 31 hrs · routed in &lt;10 s, rest is the rep (assumed)</div></div>
+  <div class="kpi"><div class="v">{{ s.coverage.employees }}%</div><div class="l">Headcount coverage</div><div class="b">Baseline 30% enrichment coverage</div></div>
+  <div class="kpi"><div class="v">{{ s.sdr13 }}</div><div class="l">Leads to SDRs this week</div><div class="b">v1.2 rules would send {{ s.sdr12 }}. 3 SDRs.</div></div>
+  <div class="kpi"><div class="v">{{ s.breaches }}</div><div class="l">SLA breaches, escalated</div><div class="b">A = 15 min, B = 60 min. See reps below.</div></div>
+  <div class="kpi"><div class="v">{{ ob.get('PASS',0) }} · {{ ob.get('FIXED',0) }} · {{ ob.get('BLOCKED',0) }}</div><div class="l">Outbound pass · fixed · blocked</div><div class="b">Nothing sends without passing the gate</div></div>
+</div>
+
+{% if breach %}
+<div class="alert">
+  <span class="pill solid">SLA breach</span>
+  <span class="msg">Tier A lead {{ breach.name }} ({{ breach.company }}) has gone {{ breach.data.form.minutes_ago|int - 15 }} min past the 15-minute SLA with no rep touch. Owner: {{ breach.owner }}. Escalated to Dana Kim (SDR manager).</span>
+  <a href="{{ url_for('lead', lead_id=breach.id) }}">Open trace →</a>
+</div>
+{% endif %}
+
+<div class="grid g-main mt">
+  <div class="card">
+    <h2>Where leads come from, where they go <small>simulated week · score v1.3</small></h2>
+    <div class="tbl-wrap"><table>
+      <tr><th>Source</th><th class="num">Leads</th><th class="num">Tier A</th><th class="num">Tier B</th><th class="num">To SDRs (v1.3)</th><th class="num">To SDRs (v1.2)</th></tr>
+      {% for key, label in [('demo','Inbound · demo request'),('pricing_signal','Hybrid · target account on /pricing'),('content','Inbound · content download')] %}
+      {% set r = s.by_source[key] %}
+      <tr><td>{{ label }}</td><td class="num">{{ r.leads }}</td><td class="num">{{ r.a }}</td><td class="num">{{ r.b }}</td><td class="num"><b>{{ r.sdr13 }}</b></td><td class="num">{{ r.sdr12 }}</td></tr>
+      {% endfor %}
+      <tr><td>Junk (competitor, student, customer)</td><td class="num">{{ s.junk }}</td><td class="num">—</td><td class="num">—</td><td class="num">0</td><td class="num">0</td></tr>
+    </table></div>
+    <p class="note">Content downloads still get captured, enriched, scored and credited to Marketing. Only the ones that score A or B reach an SDR; the rest go to nurture and are re-scored nightly.</p>
+  </div>
+  <div class="card">
+    <h2>Who is sitting on leads <small>CRO ask</small></h2>
+    <table>
+      <tr><th>Rep</th><th class="num">Assigned</th><th class="num">Median first touch</th><th class="num">Breaches</th></tr>
+      {% for rep, d in s.by_rep.items()|sort(attribute='1.breaches', reverse=True) %}
+      <tr class="{{ 'hl' if d.breaches >= 5 }}"><td>{{ rep }}</td><td class="num">{{ d.assigned }}</td><td class="num">{{ d.median }} min</td><td class="num"><b>{{ d.breaches }}</b></td></tr>
+      {% endfor %}
+    </table>
+    <p class="note">Rep response times are simulated. In production these come from CRM activity timestamps, measured from the moment of routing.</p>
+  </div>
+</div>
+
+<div class="grid g2 mt">
+  <div class="card">
+    <h2>Data and enrichment <small>grey tick = 30% baseline</small></h2>
+    {% for k, label in [('segment','Segment'),('employees','Headcount'),('tech','Current tooling'),('fleet','Fleet size')] %}
+    <div class="bar-row"><span>{{ label }}</span><span class="bar"><i class="{{ 'low' if s.coverage[k] < 80 }}" style="width:{{ s.coverage[k] }}%"></i><b style="left:30%"></b></span><span class="num">{{ s.coverage[k] }}%</span></div>
+    {% endfor %}
+    <p class="note">Fleet size is the weakest field, so it never blocks a score: unknown fields score 0 and get flagged instead of counting against the lead. Next step: FMCSA power-unit lookup for US carriers.</p>
+    <table class="mt">
+      <tr><th>Waterfall step</th><th class="num">Cost / call</th><th>Stops when</th></tr>
+      <tr><td>1 · Cache (30 days)</td><td class="num">$0.00</td><td>Field present, confidence ≥ 0.70</td></tr>
+      <tr><td>2 · Provider A (firmographics)</td><td class="num">$0.08</td><td>Same</td></tr>
+      <tr><td>3 · Provider B (tech + contacts)</td><td class="num">$0.15</td><td>Only called for fields A missed</td></tr>
+      <tr><td>4 · Site research agent (fleet)</td><td class="num">$0.03</td><td>Only for fleet size; capped</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h2>Tier mix: v1.2 vs v1.3 <small>same {{ s.real }} leads</small></h2>
+    <table>
+      <tr><th>Tier</th><th class="num">v1.2</th><th class="num">v1.3</th><th>What happens</th></tr>
+      <tr><td><span class="tier A">A</span></td><td class="num">{{ s.tiers12.A }}</td><td class="num"><b>{{ s.tiers.A }}</b></td><td>Slack alert, 15-min SLA</td></tr>
+      <tr><td><span class="tier B">B</span></td><td class="num">{{ s.tiers12.B }}</td><td class="num"><b>{{ s.tiers.B }}</b></td><td>SDR queue, 60-min SLA</td></tr>
+      <tr><td><span class="tier C">C</span></td><td class="num">{{ s.tiers12.C }}</td><td class="num"><b>{{ s.tiers.C }}</b></td><td>Nurture, re-scored nightly</td></tr>
+      <tr><td><span class="tier Nurture">Nurture</span></td><td class="num">{{ s.tiers12.Nurture }}</td><td class="num"><b>{{ s.tiers.Nurture }}</b></td><td>Newsletter</td></tr>
+      <tr><td><span class="tier DQ">DQ</span></td><td class="num">{{ s.tiers12.DQ }}</td><td class="num"><b>{{ s.tiers.DQ }}</b></td><td>Shipper or outside US/CA</td></tr>
+    </table>
+    <p class="note">The drop in Tier B is v1.3 cutting content downloads from +20 to +6. Every point on every score is explained on the <a href="{{ url_for('config') }}">config page</a>.</p>
+  </div>
+</div>
+
+<div class="card mt">
+  <h2>Agent activity log <small><a href="{{ url_for('agent_log') }}">see all</a></small></h2>
+  <div class="tbl-wrap"><table>
+    <tr><th>Time</th><th>Trace</th><th>Agent</th><th>What it did</th><th>Model · prompt</th><th>Result</th><th class="num">Cost</th></tr>
+    {% for r in log %}
+    <tr><td class="mono">{{ r.ts }}</td><td class="mono">{% if r.trace.startswith('tr_1') %}<a href="{{ url_for('lead', lead_id='L-' ~ r.trace[3:]) }}">{{ r.trace }}</a>{% elif r.trace.startswith('tr_d') %}<a href="{{ url_for('outbound', draft_id=r.trace[3:]) }}">{{ r.trace }}</a>{% else %}{{ r.trace }}{% endif %}</td><td>{{ r.agent }}</td><td>{{ r.action|truncate(110) }}</td><td class="mono">{{ r.model_prompt }}</td><td><span class="pill {{ r.result.split()[0]|lower }}">{{ r.result }}</span></td><td class="num">${{ '%.3f'|format(r.cost) }}</td></tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% endblock %}

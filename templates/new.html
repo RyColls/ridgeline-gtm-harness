@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Score a new lead · Ridgeline GTM Harness{% endblock %}
+{% block body %}
+<div class="eyebrow">Prototype · live run</div>
+<h1 class="page-title"><u>Try it</u>: submit a form fill</h1>
+<p class="lede">This runs the real pipeline: junk filter, mocked enrichment waterfall, dedupe, score v1.3, routing, CRM writeback and (optionally) the grounding check on an LLM note you paste in. The result is saved to SQLite and opens as a trace.</p>
+
+<div class="grid g-main">
+  <form class="card accent" method="post">
+    <h2>Form fill</h2>
+    <div class="grid g2" style="gap:0 16px">
+      <div><label>First name</label><input name="first" id="first" required value="Jamie"></div>
+      <div><label>Last name</label><input name="last" id="last" required value="Cole"></div>
+    </div>
+    <label>Work email</label>
+    <input name="email" id="email" required value="jcole@gulfcoastdrayage.example" list="domains">
+    <datalist id="domains">{% for d in domains %}<option value="someone@{{ d }}">{% endfor %}<option value="someone@gmail.com"><option value="someone@dispatchly.example"></datalist>
+    <label>Job title</label><input name="title" id="title" required value="VP Operations">
+    <div class="grid g2" style="gap:0 16px">
+      <div><label>Form</label><select name="form_type" id="form_type"><option value="demo">Demo request</option><option value="content">Content download</option></select></div>
+      <div><label>Asset (content only)</label><input name="asset" id="asset" placeholder="2026 Dispatch Benchmark Report"></div>
+    </div>
+    <label>LLM "why" note to check (optional)</label>
+    <textarea name="ai_note" id="ai_note" placeholder="Paste a note with [field.path] citations to run the grounding check"></textarea>
+    <p class="note">Try citing a field that's empty, or a number that isn't in the record, to watch the check block it.</p>
+    <div class="btn-row mt"><button class="btn red">Run the pipeline</button></div>
+  </form>
+  <div class="card">
+    <h2>Presets</h2>
+    <p class="note" style="margin-top:0">Fill the form with a scenario, then run it.</p>
+    <div class="btn-row" style="flex-direction:column;align-items:stretch">
+      <button class="btn sm" type="button" onclick="preset('Jamie','Cole','jcole@gulfcoastdrayage.example','VP Operations','demo','', 'Gulf Coast Drayage is a carrier with 140 employees [company.segment][company.employees]. They had funding news recently [signals.funding_age_days]. Jamie runs operations and asked for a demo [contact.title][signals.form_type].')">Good fit, demo, grounded note</button>
+      <button class="btn sm" type="button" onclick="preset('Jamie','Cole','jcole@gulfcoastdrayage.example','VP Operations','demo','', 'Gulf Coast Drayage just raised a $40M Series B [signals.funding_age_days]. They run 500 trucks across Texas [company.fleet_size].')">Same lead, hallucinated note</button>
+      <button class="btn sm" type="button" onclick="preset('Priya','Natarajan','pnatarajan@maplecrossfreight.example','Dispatch Supervisor','content','Driver HOS guide','')">Canadian broker, content download</button>
+      <button class="btn sm" type="button" onclick="preset('Alex','Morgan','amorgan@mesaverdelogistics.example','Director of Logistics','demo','','')">Outside US/Canada</button>
+      <button class="btn sm" type="button" onclick="preset('Chris','Bell','cbell@haulwise.example','Growth','content','ROI calculator','')">Competitor</button>
+    </div>
+    <p class="note">Mock providers know these domains: {{ domains|map('replace','.example','')|join(', ') }}. Any other work domain enriches to nothing and scores on what the form gave us.</p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function preset(f,l,e,t,ft,a,n){
+  document.getElementById('first').value=f; document.getElementById('last').value=l;
+  document.getElementById('email').value=e; document.getElementById('title').value=t;
+  document.getElementById('form_type').value=ft; document.getElementById('asset').value=a;
+  document.getElementById('ai_note').value=n;
+}
+</script>
+{% endblock %}

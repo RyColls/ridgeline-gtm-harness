@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% block title %}Design · Ridgeline GTM Harness{% endblock %}
+{% block body %}
+<div class="eyebrow">Design · the main event</div>
+<h1 class="page-title"><u>One</u> spine, two motions, one log</h1>
+<p class="lede">A GTM harness for Ridgeline Freight Software: enrichment, scoring, routing, messaging and logging working as one system with one record per person and account. Hybrid motion; inbound built first; scoring prototyped.</p>
+
+<div class="doc-layout">
+<nav class="toc">
+  <a href="#reframe"><span class="n">0</span>The reframe</a>
+  <a href="#motion"><span class="n">1</span>Motion and why</a>
+  <a href="#process"><span class="n">2</span>Process model</a>
+  <a href="#workflows"><span class="n">3</span>Workflows</a>
+  <a href="#data"><span class="n">4</span>Data flow</a>
+  <a href="#deps"><span class="n">5</span>Dependencies, build order</a>
+  <a href="#reqs"><span class="n">6</span>Requirements</a>
+  <a href="#ai"><span class="n">7</span>Where AI fits</a>
+  <a href="#failures"><span class="n">8</span>What-ifs</a>
+  <a href="#assumptions"><span class="n">9</span>Assumptions</a>
+</nav>
+<div>
+
+<!-- 0 -->
+<section class="sec" id="reframe">
+  <h2><span class="n">0</span>The reframe: it's a trust problem, not a speed problem</h2>
+  <p>The kickoff list reads like five separate problems: slow speed-to-lead, generic outbound, low enrichment, duplicates, untrusted scores. They're one loop:</p>
+  <div class="callout">Bad data <b>(30% enriched, 22% duplicates)</b> → wrong scores → reps stop trusting the system → reps cherry-pick and sit on leads → <b>31-hour speed-to-lead</b> → no feedback reaches the scores → scores stay wrong.</div>
+  <p>Making routing faster without fixing trust just delivers untrusted leads faster. So the design is ordered around trust: one clean record first, a score anyone can read and argue with, an SLA that makes rep behavior visible, and a feedback loop that turns "this is wrong" into a rule change within a week. Speed falls out of that.</p>
+  <p>Three design principles follow, and every step below obeys them:</p>
+  <ol>
+    <li><b>The CRM is the system of record; the harness is the system of reasoning.</b> Contacts, accounts, owners and activities live in the CRM. Why something happened (traces, score versions, eval results, feedback) lives in the harness log.</li>
+    <li><b>One writer per field.</b> Every CRM field has exactly one system allowed to write it. Rep edits lock a field from automated overwrite. This is how the five tools stop each thinking they're the source of truth.</li>
+    <li><b>LLMs write words; rules make decisions.</b> Tiers, routes, SLAs and send/no-send are deterministic and versioned. AI drafts explanations and messages, and code checks them before anyone sees them.</li>
+  </ol>
+</section>
+
+<!-- 1 -->
+<section class="sec" id="motion">
+  <h2><span class="n">1</span>Motion: hybrid, built inbound-first</h2>
+  <p><b>Hybrid</b>, because Ridgeline's strongest buying signal crosses the two motions: a named target account visiting the pricing page is better intent than most form fills, and today nobody acts on it. Inbound and outbound also need exactly the same parts (clean record, enrichment, score, owner), so building them separately would recreate the "five tools" problem.</p>
+  <p><b>Inbound first</b>, because it's the fastest provable win: 900 form fills a month and a 31-hour baseline means a measurable result in weeks. It also forces the shared spine (enrichment, dedupe, scoring, CRM writeback) to exist, which outbound then reuses.</p>
+  <table class="design-tbl">
+    <tr><th>Trigger</th><th>Volume</th><th>Path</th></tr>
+    <tr><td>Demo request form</td><td>~17% of form fills</td><td>Spine → Tier A/B → named rep, 15/60-min SLA</td></tr>
+    <tr><td>Content download</td><td>~63%</td><td>Spine → mostly C/Nurture; promoted to an SDR only if it scores A/B</td></tr>
+    <tr><td>Target account on /pricing (hybrid)</td><td>~6% equivalent</td><td>Find the buyer → spine → account owner → outbound play with a grounded first touch</td></tr>
+    <tr><td>Outbound account list (1,500)</td><td>Nightly batch</td><td>Spine → prioritized by intent → drafts → eval gate → sequence</td></tr>
+  </table>
+</section>
+
+<!-- 2 -->
+<section class="sec" id="process">
+  <h2><span class="n">2</span>Process model: trigger to outcome</h2>
+  <p>Actors are the lanes. Diamonds are decision points; every handoff between lanes writes a trace row.</p>
+  <pre class="mermaid">
+flowchart TB
+  subgraph PROSPECT["Prospect"]
+    F1["Form fill: demo or content"]
+    F2["Target account visits /pricing"]
+  end
+  subgraph INTAKE["Intake service"]
+    W["Webhook + idempotency key"]
+    J{"Junk filter"}
+    FB2["Find the buyer at the account"]
+  end
+  subgraph SPINE["Shared spine"]
+    E["Enrichment waterfall"]
+    D["Dedupe + lead-to-account match"]
+    S["Score: fit + intent, with reasons"]
+    T{"Tier?"}
+  end
+  subgraph ROUTE["Routing + CRM"]
+    R["Route: account owner, territory, round robin"]
+    WB["CRM writeback: score, reasons, sources, owner, version"]
+  end
+  subgraph REPS["SDRs"]
+    A["Slack alert + why note"]
+    SLA{"Touched within SLA?"}
+    ESC["Escalate to SDR manager"]
+    FBK["Rep marks score right or wrong"]
+  end
+  subgraph OUT["Outbound engine"]
+    PL["Account play: research + draft first touch"]
+    EV{"Eval gate"}
+    HQ["Human review"]
+    SEQ["Sequencer send"]
+  end
+  NUR["Nurture + nightly re-score"]
+  CSM["CSM"]
+  X["Drop + log"]
+
+  F1 --> W
+  F2 --> FB2 --> W
+  W --> J
+  J -- competitor --> X
+  J -- existing customer --> CSM
+  J -- personal or student --> NUR
+  J -- pass --> E --> D --> S --> T
+  T -- "A / B" --> R --> WB --> A --> SLA
+  T -- "C / Nurture" --> NUR
+  T -- DQ --> X
+  NUR -- "crosses into B" --> S
+  SLA -- yes --> FBK
+  SLA -- no --> ESC --> FBK
+  FBK -. "weekly rule review" .-> S
+  WB -- "target account, Tier A, no hand-raise" --> PL --> EV
+  EV -- pass --> SEQ
+  EV -- "fixable: merge field, pricing talk" --> SEQ
+  EV -- "unsupported claim" --> HQ --> SEQ
+  </pre>
+  <p class="legend">Every node writes to the trace log (input, rule or prompt version, output, cost, latency). Dotted line = the feedback loop that keeps the score honest.</p>
+  <h3>Decision points</h3>
+  <table class="design-tbl">
+    <tr><th>Decision</th><th>Rule</th><th>Owner of the rule</th></tr>
+    <tr><td>Junk filter</td><td>Competitor domain → drop. Existing customer → CSM. Personal email or student → nurture only. Else pass.</td><td>Marketing Ops</td></tr>
+    <tr><td>Tier</td><td>DQ if shipper or outside US/CA. A: fit ≥ 70, intent ≥ 45 and a buying persona, or fit ≥ 60 and asked for a demo. B: fit ≥ 55, intent ≥ 20. C: fit ≥ 40. Else Nurture.</td><td>RevOps (versioned config)</td></tr>
+    <tr><td>Route</td><td>Named target account → its owner. Else territory by state/province. Else round robin.</td><td>RevOps</td></tr>
+    <tr><td>SLA</td><td>A: first touch in 15 min. B: 60 min. Miss → SDR manager alerted, breach logged against the rep.</td><td>Head of Sales Development</td></tr>
+    <tr><td>Eval gate</td><td>Grounding or invented facts fail → block for human. Merge-field or persona issues → auto-fix and re-check.</td><td>RevOps + SDR manager</td></tr>
+  </table>
+</section>
+
+<!-- 3 -->
+<section class="sec" id="workflows">
+  <h2><span class="n">3</span>Workflows: in, what happens, out, owner, failure</h2>
+  <div class="tbl-wrap"><table class="design-tbl">
+    <tr><th>Step</th><th>Input</th><th>What happens</th><th>Output</th><th>Owner</th><th>Depends on</th><th>If it fails</th></tr>
+    <tr><td>1 · Intake</td><td>Form payload or pricing-page event</td><td>Validate, idempotency key (form ID + email), drop resubmits within 24 h, put on queue</td><td>Raw lead event</td><td>Intake service</td><td>Form webhook, web analytics</td><td>Webhook retries 3× with backoff; dead-letter queue; hourly reconcile against form tool</td></tr>
+    <tr><td>2 · Junk filter</td><td>Email, title, domain</td><td>Rules: competitor, customer, personal, student, test</td><td>Pass / nurture / CSM / drop, with reason</td><td>Rules, Marketing Ops</td><td>Competitor + customer lists (CRM)</td><td>Fail open: treat as pass, flag "unfiltered" so a bad record can't block a real buyer</td></tr>
+    <tr><td>2b · Find the buyer (hybrid)</td><td>Account domain, no person</td><td>Contact search for Ops / Dispatch leaders; verify email</td><td>Contact + confidence</td><td>Enrichment workflow</td><td>Provider B</td><td>Create an account-level task for the owner instead of a lead</td></tr>
+    <tr><td>3 · Enrich</td><td>Email, domain</td><td>Per field: 30-day cache → Provider A → Provider B (only missing fields) → site research agent for fleet size. Stop at first match ≥ 0.70 confidence</td><td>Company fields, each with source + confidence + cost</td><td>Enrichment workflow</td><td>Junk filter passed; provider APIs</td><td>Skip the provider, score on known fields, flag "partial"; never block routing on enrichment</td></tr>
+    <tr><td>4 · Dedupe + match</td><td>Enriched lead</td><td>Exact email match → merge. Else domain → account. Fuzzy name match only suggests, never auto-merges</td><td>One contact on one account; merge log</td><td>Dedupe service</td><td>CRM read API</td><td>Create new + "possible duplicate" task for RevOps; never block</td></tr>
+    <tr><td>5 · Score</td><td>Merged record + intent signals</td><td>Rules engine, versioned weights; intent decays by half-life; unknown fields score 0 and are flagged</td><td>Fit, intent, tier, reasons, version</td><td>Scoring engine, RevOps owns config</td><td>Steps 3–4</td><td>Safe mode: demo request → Tier B round robin; everything else → queue for re-score</td></tr>
+    <tr><td>6 · Route</td><td>Tier, account, state</td><td>Owner → territory → round robin; C/Nurture to sequences</td><td>Owner + rule that fired</td><td>Router, RevOps</td><td>Rep roster, territories</td><td>Unassigned queue + alert to SDR manager</td></tr>
+    <tr><td>7 · Why note</td><td>Record + reasons</td><td>LLM writes 2–3 sentences with [field] citations; code checks every citation and number</td><td>Note, or template reasons if blocked</td><td>LLM step, check owned by RevOps</td><td>Step 5</td><td>Template reasons (no prose); never delays routing</td></tr>
+    <tr><td>8 · CRM writeback + alert</td><td>Everything above</td><td>Upsert contact/account fields this system owns; score + reasons + version; Slack DM with trace link</td><td>CRM record; rep notified</td><td>Writeback service</td><td>CRM API, Slack</td><td>Queue writes and retry; if Slack is down, CRM task + email</td></tr>
+    <tr><td>9 · SLA monitor</td><td>Routed time, CRM activities</td><td>Check first touch at 15 / 60 min</td><td>Met, or escalation + breach log</td><td>SLA monitor; Head of SDR owns the rule</td><td>CRM activity sync</td><td>If activity sync lags, hold escalation until synced (no false accusations)</td></tr>
+    <tr><td>10 · Feedback</td><td>Rep 👍/👎 + reason</td><td>Stored by tier and version; weekly review; > 25% wrong in a tier freezes changes</td><td>Precision by tier; candidate rule changes</td><td>RevOps</td><td>Reps using it</td><td>Low feedback volume → sample 10 leads/week for manual review</td></tr>
+    <tr><td>11 · Outbound play</td><td>Target account + signals</td><td>Research agent collects signals with sources; LLM drafts using only those + approved customer stories</td><td>Draft with citations</td><td>Outbound engine</td><td>Spine record; signal feeds</td><td>No draft → owner gets a task with the signals instead</td></tr>
+    <tr><td>12 · Eval gate</td><td>Draft</td><td>Grounding, no invented facts, persona fit, format, batch similarity; LLM judge only for customer claims</td><td>Pass / fixed / blocked</td><td>Rules + judge</td><td>Step 11</td><td>Fail closed: if the gate can't run, nothing sends</td></tr>
+    <tr><td>13 · Nightly re-score</td><td>C/Nurture records + new signals</td><td>Re-run step 5 with fresh intent</td><td>Promotions to B with reason</td><td>Scoring engine</td><td>Signal batch jobs</td><td>Skip a night; next run catches up</td></tr>
+  </table></div>
+  <p class="legend">Note the asymmetry: inbound fails <b>open</b> (a real buyer must never get stuck), outbound fails <b>closed</b> (a wrong email to a prospect is worse than no email).</p>
+</section>
+
+<!-- 4 -->
+<section class="sec" id="data">
+  <h2><span class="n">4</span>Data flow and source of truth</h2>
+  <pre class="mermaid">
+flowchart LR
+  FORMS["Form tool"] -- "webhook, real-time" --> H
+  WEB["Web analytics, reverse-IP"] -- "event, real-time" --> H
+  JOBS["Job-post scrape"] -- "batch, nightly" --> SIG[("Signal store")]
+  NEWS["Funding news feed"] -- "batch, daily" --> SIG
+  SIG --> H
+  H["Harness: intake, enrich, score, route"] -- "request/response" --> PROV["Providers A, B, site agent"]
+  PROV --> H
+  H -- "upsert, event-driven" --> CRM[("CRM: system of record")]
+  CRM -- "activities, every 1 min" --> H
+  H -- "event" --> SLACK["Slack alerts"]
+  H -- "approved drafts" --> SEQ["Sequencer"]
+  SEQ -- "sends, replies, webhook" --> CRM
+  H -- "every step" --> LOG[("Trace log + score history")]
+  CFG[("Scoring config in Git")] -- "on release" --> H
+  </pre>
+  <table class="design-tbl mt">
+    <tr><th>Data</th><th>Source of truth</th><th>Written by (only)</th><th>Moves how</th></tr>
+    <tr><td>Contact + account identity, owner</td><td>CRM</td><td>Harness on create; reps after</td><td>Event-driven upsert</td></tr>
+    <tr><td>Firmographics (segment, headcount, fleet)</td><td>CRM, with source + confidence fields</td><td>Enrichment step; rep edits lock the field</td><td>Request/response, cached 30 days</td></tr>
+    <tr><td>Intent signals (pricing, hiring, funding)</td><td>Harness signal store</td><td>Signal jobs</td><td>Real-time (web) and batch (jobs, news)</td></tr>
+    <tr><td>Score, tier, reasons, version</td><td>Harness (history); CRM holds the current copy</td><td>Scoring engine</td><td>Event-driven on every change</td></tr>
+    <tr><td>Scoring weights</td><td>Git (versioned JSON)</td><td>RevOps via pull request</td><td>Released, not edited live</td></tr>
+    <tr><td>Activities, meetings</td><td>CRM</td><td>Reps, sequencer</td><td>Polled every minute for SLA</td></tr>
+    <tr><td>Sends and replies</td><td>Sequencer → CRM</td><td>Sequencer</td><td>Webhook</td></tr>
+    <tr><td>Traces, evals, feedback</td><td>Harness log</td><td>Each step</td><td>Append-only</td></tr>
+  </table>
+</section>
+
+<!-- 5 -->
+<section class="sec" id="deps">
+  <h2><span class="n">5</span>Dependencies and build order</h2>
+  <h3>What depends on what</h3>
+  <table class="design-tbl">
+    <tr><th>Dependency</th><th>Type</th><th>What breaks downstream if it fails</th><th>Mitigation</th></tr>
+    <tr><td>CRM admin + API access</td><td>People, then API</td><td>Everything: no writeback, no dedupe, no SLA</td><td>Week-1 blocker; write queue with retry</td></tr>
+    <tr><td>Field ownership agreement</td><td>People (RevOps)</td><td>Systems overwrite each other again</td><td>One-hour workshop before any writeback</td></tr>
+    <tr><td>Dedupe backfill (22% → under 5%)</td><td>Data job</td><td>Leads route to the wrong owner; scores split across duplicates</td><td>Run before routing goes live</td></tr>
+    <tr><td>Enrichment providers</td><td>Outside API</td><td>Lower fit accuracy, more "unknown" flags</td><td>Two providers + cache; route anyway</td></tr>
+    <tr><td>Reverse-IP / web analytics</td><td>Outside API</td><td>No hybrid pricing-page play</td><td>Inbound unaffected; outbound falls back to batch signals</td></tr>
+    <tr><td>Slack</td><td>Outside API</td><td>Reps not alerted</td><td>CRM task + email fallback</td></tr>
+    <tr><td>LLM provider</td><td>Outside API</td><td>No why notes; no drafts</td><td>Template reasons; outbound pauses (fails closed)</td></tr>
+    <tr><td>SDR manager owning the SLA</td><td>People</td><td>Escalations ignored, CRO ask unmet</td><td>Agreed in kickoff; weekly rep table</td></tr>
+    <tr><td>CASL consent rules for Canada</td><td>Legal</td><td>Canadian outbound can't send</td><td>Consent flag on account; gate in eval</td></tr>
+  </table>
+  <h3>Build order</h3>
+  <div class="phase"><div class="w">Week 1–2<small>Foundation</small></div><div>CRM field audit and ownership map; dedupe backfill; trace log; intake webhook with idempotency. <i>Exit: one record per person, every inbound event logged.</i></div></div>
+  <div class="phase"><div class="w">Week 2–4<small>Inbound spine</small></div><div>Junk filter, enrichment waterfall, scoring v1.3 in <b>shadow mode</b> for 2 weeks (scored, shown to reps, not routed). <i>Exit: Tier A precision ≥ 70% on rep feedback.</i></div></div>
+  <div class="phase"><div class="w">Week 4–6<small>Route + SLA</small></div><div>Routing rules live, Slack alerts with why notes, SLA monitor and escalation, rep table for the CRO. <i>Exit: median Tier A speed-to-lead under 10 minutes.</i></div></div>
+  <div class="phase"><div class="w">Week 7–10<small>Hybrid + outbound</small></div><div>Pricing-page signal play, signal store (hiring, funding), outbound drafts behind the eval gate with 100% human review at first, dropping to sampling once pass precision holds. <i>Exit: grounded outbound A/B-tested against today's sequences.</i></div></div>
+  <div class="phase"><div class="w">Ongoing<small>Loop</small></div><div>Weekly feedback review; config releases via pull request; nightly re-score of nurture.</div></div>
+</section>
+
+<!-- 6 -->
+<section class="sec" id="reqs">
+  <h2><span class="n">6</span>Requirements: asks → testable requirements → metrics</h2>
+  <div class="tbl-wrap"><table class="design-tbl">
+    <tr><th>Who · ask</th><th>Technical requirement</th><th>Metric (baseline → target)</th><th>Verdict</th></tr>
+    <tr><td>CRO<span class="sub" style="font-weight:400">"Which reps are sitting on leads"</span></td><td>Every A/B lead starts an SLA timer at routing (A 15 min, B 60 min). A miss escalates to the SDR manager and logs a breach against the owner. Weekly rep table: assigned, median first touch, breaches.</td><td>Median Tier A speed-to-lead: 31 h → under 10 min. A leads touched within SLA ≥ 90%.</td><td><span class="verdict yes">Yes</span></td></tr>
+    <tr><td>CRO<span class="sub" style="font-weight:400">"Outbound that doesn't sound like everyone else's"</span></td><td>Every first touch cites ≥ 1 account-specific signal and only approved customer stories; eval gate blocks uncited claims and invented numbers; batch similarity under 0.30.</td><td>Reply rate vs today's generic sequences (50/50 test, 6 weeks); 0 sends with invented facts; eval pass rate tracked.</td><td><span class="verdict reshape">Yes, reshaped</span><span class="sub">"Different" means grounded in their own data, not clever copy. And it ships in phase 3, after inbound.</span></td></tr>
+    <tr><td>VP Marketing<span class="sub" style="font-weight:400">"Every content download is a lead. Route all to SDRs, fast"</span></td><td>Every download is captured, enriched, scored and attributed to Marketing within seconds. Only A/B go to SDRs; C/Nurture go to nurture and are re-scored nightly; promotions to B route automatically with the reason.</td><td>SDR acceptance of routed leads ≥ 70%; content-sourced pipeline reported separately. Simulated week: {{ s.by_source.content.sdr12 }} content leads to SDRs under the "route all" rule vs {{ s.by_source.content.sdr13 }}.</td><td><span class="verdict push">Push back</span><span class="sub">3 SDRs can't work ~{{ s.sdr12 }} leads a week, and this is exactly what made reps stop trusting scores.</span></td></tr>
+    <tr><td>RevOps<span class="sub" style="font-weight:400">"Can't own another black box"</span></td><td>Score = sum of named signals; each reason cites a field, source and confidence; weights in versioned config RevOps owns; every score stores its version; any change explainable as a signal-by-signal diff.</td><td>100% of scores carry reasons + version; "why did this change?" answered in under 5 minutes from the trace.</td><td><span class="verdict yes">Yes</span><span class="sub">Cost: no ML model in v1. Accept a lower ceiling for explainability.</span></td></tr>
+    <tr><td>Head of SDR<span class="sub" style="font-weight:400">"If the new scores are wrong twice, they'll ignore these too"</span></td><td>2-week shadow mode before routing; one-click right/wrong with reason on every lead; precision by tier reviewed weekly; > 25% wrong in a tier freezes config changes until reviewed.</td><td>Tier A precision ≥ 70%; feedback on ≥ 50% of A leads.</td><td><span class="verdict reshape">Yes, reshaped</span><span class="sub">We won't promise "never wrong". We promise every wrong score is visible, explainable and fixed within a week.</span></td></tr>
+  </table></div>
+  <h3>Named conflicts</h3>
+  <ul>
+    <li><b>Marketing volume vs SDR precision.</b> Resolved by separating <i>capture and credit</i> (every download, Marketing's metric) from <i>routing</i> (only buyers, SDR's metric).</li>
+    <li><b>CRO speed vs RevOps explainability.</b> Resolved in favor of explainable rules; speed comes from automation, not from a smarter opaque model.</li>
+    <li><b>CRO "different outbound" vs Head of SDR "don't be wrong".</b> Personalization is the riskiest place for AI to be wrong, so outbound fails closed behind the eval gate and starts with full human review.</li>
+  </ul>
+</section>
+
+<!-- 7 -->
+<section class="sec" id="ai">
+  <h2><span class="n">7</span>Where AI fits, and where it doesn't</h2>
+  <table class="design-tbl">
+    <tr><th>Step</th><th>Approach</th><th>Why</th></tr>
+    <tr><td>Junk filter, dedupe, routing, SLA</td><td>Rules</td><td>Must be instant, free, auditable and identical every time.</td></tr>
+    <tr><td>Persona from job title</td><td>Rules (keyword map)</td><td>Covers ~95% of titles; an LLM fallback for odd titles is a later option.</td></tr>
+    <tr><td>Enrichment</td><td>Rules waterfall + one agent</td><td>Providers are cheap and confident for most fields. A site-research agent only handles the long tail (fleet size from the company site), with a confidence score and a cost cap.</td></tr>
+    <tr><td>Scoring</td><td>Rules</td><td>RevOps must explain every point; LLM scores drift and can't be diffed. This is the RevOps ask.</td></tr>
+    <tr><td>Why note for reps</td><td>LLM + deterministic check</td><td>Plain English is what makes reps read the reasons. The check guarantees every sentence cites a real, non-empty field and every number exists in it; else the template ships.</td></tr>
+    <tr><td>Outbound research</td><td>Agent</td><td>Reading sites, posts and news is unstructured work; every signal it returns must carry a source.</td></tr>
+    <tr><td>First-touch drafts</td><td>LLM</td><td>The CRO wants non-generic copy; constrained to cited signals + approved stories.</td></tr>
+    <tr><td>Eval gate</td><td>Rules first, LLM judge second</td><td>Code catches uncited claims, numbers, merge fields, banned phrases and similarity. A judge model only rules on semantic claims about customers, and its precision is measured on a labeled set.</td></tr>
+  </table>
+</section>
+
+<!-- 8 -->
+<section class="sec" id="failures">
+  <h2><span class="n">8</span>What-ifs, prepared</h2>
+  <table class="design-tbl">
+    <tr><th>Scenario</th><th>What happens</th></tr>
+    <tr><td>Provider B goes down</td><td>Waterfall skips it after 2 timeouts (circuit breaker, retry every 5 min). Records score on known fields, flagged "partial", routed anyway. Nightly job re-enriches partials. Dashboard shows the component as degraded.</td></tr>
+    <tr><td>CRM API rate-limited or down</td><td>Writes queue and retry with backoff; Slack alert still fires with a trace link so reps can act; SLA clock pauses for CRM-dependent checks.</td></tr>
+    <tr><td>LLM down</td><td>Why notes fall back to template reasons (no routing delay). Outbound pauses; nothing sends unchecked.</td></tr>
+    <tr><td>VP Marketing changes the ask again</td><td>It's a config change: e.g. a "content + target account" rule promotes to B. Shadow-run it for a week, show the SDR-load diff, then decide. No code change.</td></tr>
+    <tr><td>Volume triples (2,700/month)</td><td>Pipeline is queue-based, so throughput scales horizontally. Enrichment cost goes from ~$240 to ~$730/month (~$0.27/lead before cache hits). The real limit is 3 SDRs: raise Tier B thresholds or add capacity, decided from the same simulation shown on the scoring page.</td></tr>
+    <tr><td>Reps game the SLA (log a fake touch)</td><td>Count only calls and sent emails, not notes; spot-check breaches weekly.</td></tr>
+  </table>
+</section>
+
+<!-- 9 -->
+<section class="sec" id="assumptions">
+  <h2><span class="n">9</span>Assumptions and what I changed</h2>
+  <ul>
+    <li>CRM is HubSpot (the design is identical on Salesforce). Forms post webhooks. Sequencer is Outreach or Apollo.</li>
+    <li>Target accounts have one named owner; non-target leads route by territory (US West / Central / East + Canadian provinces).</li>
+    <li>"Fleet size" means power units; US carriers can later be checked against FMCSA public data.</li>
+    <li>Providers, reverse-IP, Slack and the sequencer are mocked. LLM outputs were generated once and stored; every check on them runs live.</li>
+    <li>The 7-day dashboard is ~210 simulated form fills scored by the real engine; rep response times and enrichment hit rates are assumptions.</li>
+    <li><b>Added, unasked:</b> shadow mode, the rep feedback loop, the "find the buyer" step for signal-only accounts, CASL consent for Canada, and fail-open/fail-closed asymmetry.</li>
+    <li><b>Changed:</b> scoring is the prototype rather than routing, because routing is only as good as the score it reads.</li>
+  </ul>
+</section>
+
+</div></div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='mermaid.min.js') }}"></script>
+<script>
+mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: 'base',
+  flowchart: { curve: 'basis', htmlLabels: true, nodeSpacing: 30, rankSpacing: 40 },
+  themeVariables: { fontFamily: 'Open Sans, sans-serif', fontSize: '15px', primaryColor: '#ffffff',
+    primaryBorderColor: '#3a3a3a', primaryTextColor: '#232323', lineColor: '#8e3a2c',
+    clusterBkg: '#f7f6f2', clusterBorder: '#ccc8bd', edgeLabelBackground: '#ffffff', tertiaryColor: '#f7f6f2' } });
+</script>
+{% endblock %}

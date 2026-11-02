@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Scoring config · Ridgeline GTM Harness{% endblock %}
+{% set cur = versions[-1] %}{% set prev = versions[-2] %}
+{% block body %}
+<div class="eyebrow">Prototype · scoring config</div>
+<h1 class="page-title"><u>Weights</u>: no black box</h1>
+<p class="lede">The whole model is this page. It lives in <code>harness/config/scoring_v{{ cur.version|replace('.','_') }}.json</code>, RevOps owns it, and every stored score records which version produced it. Changed weights are highlighted against v{{ prev.version }}.</p>
+
+<div class="grid g-main">
+  <div>
+    <div class="card accent">
+      <h2>Fit signals <small>v{{ cur.version }} · cap {{ cur.fit.cap }}</small></h2>
+      <table>
+        <tr><th>Signal</th><th>Field</th><th>Points</th></tr>
+        {% for k in ['segment','tech','persona'] %}
+        <tr><td>{{ cur.fit[k].label }}</td><td class="mono">{{ cur.fit[k].field }}</td><td>
+          {% for opt, pts in cur.fit[k].points.items() %}{% set old = prev.fit[k].points.get(opt) %}
+          <span class="pill {{ 'warn' if old != pts }}">{{ opt|replace('_',' ') }} {{ pts }}{% if old != pts %} (was {{ old }}){% endif %}</span>
+          {% endfor %}{% if cur.fit[k].disqualify %}<span class="pill bad">DQ: {{ cur.fit[k].disqualify|join(', ') }}</span>{% endif %}</td></tr>
+        {% endfor %}
+        {% for k in ['employees','fleet'] %}
+        <tr><td>{{ cur.fit[k].label }}</td><td class="mono">{{ cur.fit[k].field }}</td><td>{% for b in cur.fit[k].bands %}<span class="pill">{{ b[0] }}–{{ b[1] }}: {{ b[2] }}</span> {% endfor %}</td></tr>
+        {% endfor %}
+        <tr><td>Geography</td><td class="mono">{{ cur.fit.geo.field }}</td><td><span class="pill bad">DQ outside {{ cur.fit.geo.allowed|join(' / ') }}</span></td></tr>
+      </table>
+    </div>
+    <div class="card mt">
+      <h2>Intent signals <small>v{{ cur.version }} · cap {{ cur.intent.cap }} · points × 0.5^(age ÷ half-life)</small></h2>
+      <table>
+        <tr><th>Signal</th><th class="num">Points</th><th class="num">Half-life</th><th>vs v{{ prev.version }}</th></tr>
+        {% for k, c in cur.intent.items() if k != 'cap' and c %}
+        {% set o = prev.intent.get(k) %}
+        {% set pts = c.points or c.points_per_visit or c.points_per_post %}
+        {% set opts = (o.points or o.points_per_visit or o.points_per_post) if o else none %}
+        <tr class="{{ 'hl' if (not o) or opts != pts }}"><td>{{ c.label }}</td>
+          <td class="num">{{ pts }}{% if c.points_per_visit %} / visit, max {{ c.max }}{% elif c.points_per_post %} / post, max {{ c.max }}{% endif %}</td>
+          <td class="num">{{ (c.half_life_days ~ ' days') if c.half_life_days else 'none' }}</td>
+          <td>{% if not o %}<span class="pill warn">new</span>{% elif opts != pts %}<span class="pill warn">was {{ opts }}</span>{% elif o.half_life_days != c.half_life_days %}<span class="pill warn">decay added</span>{% else %}—{% endif %}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+    <div class="card mt">
+      <h2>Tier rules <small>first match wins</small></h2>
+      <table>
+        <tr><th>Tier</th><th>Rule</th><th>SLA</th></tr>
+        {% for t in cur.tiers %}<tr><td><span class="tier {{ t.tier }}">{{ t.tier }}</span></td><td>{{ t.desc }}</td><td>{{ (t.sla_minutes ~ ' min') if t.sla_minutes else '—' }}</td></tr>{% endfor %}
+        <tr><td><span class="tier DQ">DQ</span></td><td>Shipper segment, or outside US/Canada (checked first)</td><td>—</td></tr>
+      </table>
+    </div>
+  </div>
+  <div>
+    {% for v in versions|reverse %}
+    <div class="card {{ 'accent' if loop.first }} {{ 'mt' if not loop.first }}">
+      <h2>v{{ v.version }} <small>released {{ v.released }} · {{ v.owner }}</small></h2>
+      <ul style="margin:0;padding-left:18px;font-size:12.5px">{% for c in v.changelog %}<li style="margin-bottom:6px">{{ c }}</li>{% endfor %}</ul>
+    </div>
+    {% endfor %}
+    <div class="card mt">
+      <h2>How a weight changes</h2>
+      <ol style="margin:0;padding-left:18px;font-size:12.5px">
+        <li>RevOps edits a copy of the JSON as v1.4 (a pull request, so it's reviewed and logged).</li>
+        <li>v1.4 runs in shadow mode on live leads; this page and every trace show the v1.3 → v1.4 diff.</li>
+        <li>Promote only if Tier A precision holds ≥ 70% on rep feedback. Rollback = point back to v1.3.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% set res = r.result %}
+{% block title %}{{ r.contact.name }} · Inbound trace{% endblock %}
+{% block body %}
+<div class="eyebrow">Inbound lead trace · tr_{{ r.id[-4:] }}</div>
+<h1 class="page-title"><u>Why</u>: did this lead go to {{ r.owner or 'nobody' }}?</h1>
+<p class="lede">Every step the harness took for this {{ 'signal' if r.form.form_type == 'pricing_signal' else 'form fill' }}, what it wrote to the CRM, and why. Routed in {{ '%.1f'|format(r.total_ms/1000) }} seconds{% if r.cost %}, ${{ '%.2f'|format(r.cost) }} in enrichment{% endif %}.{% if r.form.note %} {{ r.form.note }}{% endif %}</p>
+
+<div class="card accent">
+  <div class="lead-head">
+    <div class="who">
+      <h2>{{ r.contact.name }}</h2>
+      <div class="sub">{{ r.contact.title }} · {{ (r.company or {}).get('name') or r.domain }}</div>
+      <div class="sub">{{ {'demo':'Demo request','content':'Content download: ' ~ (r.form.asset or ''),'pricing_signal':'Hybrid signal: pricing page'}[r.form.form_type] }} · received {{ r.received_at }} · {{ r.contact.email or 'no email' }}</div>
+    </div>
+    <div class="nums">
+      {% if res %}<span class="tier {{ res.tier }}">{{ res.tier if res.tier in ('A','B','C') else res.tier }}</span>{% else %}<span class="pill blocked">Blocked</span>{% endif %}
+      {% if r.sla %}<span class="pill {{ r.sla.state|lower }}">SLA {{ r.sla.state }}</span>{% endif %}
+      {% if res %}
+      <div class="big">{{ res.fit }}<small>Fit</small></div>
+      <div class="big">{{ res.intent }}<small>Intent</small></div>
+      {% endif %}
+      <div class="big red">{{ '%.1f'|format(r.total_ms/1000) }}s<small>Form to routed</small></div>
+    </div>
+  </div>
+</div>
+
+<div class="chips mt">
+  {% for f in [('L-1001','Marcus · Tier A'),('L-1002','Dana · hybrid signal'),('L-1003','Kevin · content'),('L-1004','Jess · student'),('L-1007','Aisha · duplicate'),('L-1008','Linda · shipper'),('L-1009','Carlos · LLM blocked'),('L-1010','Sam · competitor'),('L-1011','Nina · customer')] %}
+  <a class="chip {{ 'on' if r.id == f[0] }}" href="{{ url_for('lead', lead_id=f[0]) }}">{{ f[1] }}</a>
+  {% endfor %}
+  <a class="chip" href="{{ url_for('lead_new') }}">+ submit your own</a>
+</div>
+
+<div class="grid g-main mt">
+  <div>
+    <div class="card">
+      <h2>Pipeline steps</h2>
+      <ol class="steps">
+        {% for s in r.steps %}
+        <li class="{{ 'alarm' if s.status in ('ESCALATED','BLOCKED') }}">
+          <span class="t">+{{ ('%.1f'|format(s.at_ms/1000)) if s.at_ms < 60000 else ((s.at_ms//60000)|string ~ 'm') }}{{ 's' if s.at_ms < 60000 }}</span>
+          <div><div class="n">{{ s.name }}</div><div class="d">{{ s.detail }}</div></div>
+          <span><span class="pill {{ s.status.split()[0]|lower }}{{ ' ok' if 'FIELDS' in s.status and s.status.split()[0] == s.status.split()[2] }}{{ ' partial' if 'FIELDS' in s.status and s.status.split()[0] != s.status.split()[2] }}{{ ' solid' if s.status.startswith('TIER A') }}{{ ' dark' if s.status.startswith('TIER B') }}">{{ s.status }}</span></span>
+        </li>
+        {% endfor %}
+        {% if r.sla and r.sla.state != 'BREACHED' %}
+        <li><span class="t">SLA</span><div><div class="n">SLA check</div><div class="d">{{ r.sla.detail }}</div></div><span><span class="pill {{ r.sla.state|lower }}">{{ r.sla.state }}</span></span></li>
+        {% endif %}
+      </ol>
+    </div>
+
+    {% if r.note %}
+    <div class="card mt">
+      <h2>The "why" note the rep sees <small>LLM writes, code checks</small></h2>
+      {% if r.note.check %}
+        <div class="why-note {{ 'blocked' if r.note.check.status != 'pass' }}">{{ r.note.shown }}</div>
+        <p class="note"><b>Check:</b> {{ r.note.check.rule }} Result: <span class="pill {{ r.note.check.status }}">{{ r.note.check.status }}</span>
+        {% if r.note.check.status != 'pass' %} The LLM note was withheld; the rep sees the template reasons above instead.{% endif %}</p>
+        <table class="mt">
+          <tr><th>LLM sentence</th><th>Cited fields</th><th>Verdict</th></tr>
+          {% for s in r.note.check.sentences %}
+          <tr class="{{ 'hl' if not s.ok }}"><td>{{ s.text }}{% for p in s.problems %}<span class="sub" style="color:var(--red)">{{ p }}</span>{% endfor %}</td>
+            <td>{% for c in s.cites %}<span class="cite">{{ c }}</span> {% endfor %}</td>
+            <td><span class="pill {{ 'pass' if s.ok else 'fail' }}">{{ 'pass' if s.ok else 'fail' }}</span></td></tr>
+          {% endfor %}
+        </table>
+        <details class="mt"><summary class="note">Prompt (score_reasons v4)</summary><pre class="draft mono">{{ prompt }}</pre></details>
+      {% else %}
+        <div class="why-note">{{ r.note.shown }}</div>
+        <p class="note">No LLM note for this lead, so the rep gets the template version built from the top score reasons.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if d and d.changes %}
+    <div class="card mt">
+      <h2>What changed from v1.2 to v1.3 <small>RevOps: "if a score changes I need to explain why"</small></h2>
+      <p class="note" style="margin-top:0">Under v1.2 this lead was fit {{ d.old.fit }} / intent {{ d.old.intent }}, <span class="tier {{ d.old.tier }}">{{ d.old.tier }}</span>. Under v1.3 it is fit {{ d.new.fit }} / intent {{ d.new.intent }}, <span class="tier {{ d.new.tier }}">{{ d.new.tier }}</span>.</p>
+      <table>
+        <tr><th>Signal</th><th class="num">v1.2</th><th class="num">v1.3</th><th class="num">Change</th></tr>
+        {% for c in d.changes %}<tr><td>{{ c.group|capitalize }} · {{ c.signal }}</td><td class="num">{{ c.old }}</td><td class="num">{{ c.new }}</td><td class="num"><b>{{ '%+d'|format(c.delta) }}</b></td></tr>{% endfor %}
+      </table>
+      <p class="note"><a href="{{ url_for('config') }}">See the changelog that explains each line →</a></p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div>
+    {% if res %}
+    <div class="card">
+      <h2>Score reasons <small>v{{ res.version }}</small></h2>
+      <table>
+        <tr><th>Signal</th><th>Evidence</th><th class="num">Pts</th></tr>
+        {% for x in res.reasons %}
+        <tr><td>{{ x.group|capitalize }} · {{ x.signal }}<span class="sub mono">{{ x.field }}</span></td>
+            <td>{% if x.status == 'unknown' %}<span class="pill warn">unknown</span>{% else %}{{ x.evidence }}{% endif %}</td>
+            <td class="num">{{ '+' if x.points > 0 }}{{ x.points }}</td></tr>
+        {% endfor %}
+      </table>
+      <p class="note">Tier rule: {{ res.tier_rule }}. Weights live in a versioned config file RevOps owns; changing one is a config change, not a code deploy.</p>
+    </div>
+    {% endif %}
+
+    {% if r.crm %}
+    <div class="card mt">
+      <h2>Written to CRM</h2>
+      <table>
+        <tr><th>Field</th><th>Value</th><th>Source</th><th class="num">Conf</th></tr>
+        {% for c in r.crm %}
+        <tr><td>{{ c.field }}</td><td>{{ c.value|string|truncate(22) }}</td><td>{{ c.source }}</td><td class="num">{{ '%.2f'|format(c.confidence) if c.confidence else 'n/a' }}</td></tr>
+        {% endfor %}
+      </table>
+      <p class="note">Rep-edited fields are locked from overwrite. One writer per field: the harness never overwrites a field another system owns.</p>
+    </div>
+    {% endif %}
+
+    <div class="card mt" id="feedback">
+      <h2>Was this score right? <small>Head of SDR ask</small></h2>
+      <form method="post" action="{{ url_for('feedback', lead_id=r.id) }}">
+        <label>Reason (optional)</label>
+        <input name="reason" placeholder="e.g. already in a competitor contract">
+        <div class="btn-row mt">
+          <button class="btn sm" name="verdict" value="right">👍 Right</button>
+          <button class="btn sm red" name="verdict" value="wrong">👎 Wrong</button>
+        </div>
+      </form>
+      {% if fb %}
+      <table class="mt">{% for f in fb %}<tr><td><span class="pill {{ 'ok' if f.verdict == 'right' else 'bad' }}">{{ f.verdict }}</span></td><td>{{ f.rep }}<span class="sub">{{ f.reason or '—' }}</span></td><td class="mono">v{{ f.score_version }}</td></tr>{% endfor %}</table>
+      {% endif %}
+      <p class="note">Saved to SQLite. Wrong-rate by tier is reviewed weekly; above 25% for any tier freezes routing changes until RevOps reviews.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

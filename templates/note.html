@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Client note · Ridgeline GTM Harness{% endblock %}
+{% block body %}
+<div class="eyebrow">Client note</div>
+<h1 class="page-title"><u>To</u>: Ridgeline's CRO</h1>
+<p class="lede">Half a page, plain language: what we designed, what we build first, and what we're pushing back on.</p>
+
+<div class="letter">
+<p><b>The short version:</b> your reps don't ignore leads because they're lazy. They ignore them because the system has been wrong too often to trust. So the first thing we're fixing is trust, and speed follows from it.</p>
+
+<p><b>What we designed.</b> One pipeline that both inbound and outbound run through. Every lead gets cleaned, filled in from data providers, matched to its account so there's one record instead of three, scored, and routed to a named rep in under 10 seconds. Every score shows its reasons in plain English ("3PL, 140 trucks, hiring two dispatchers, asked for a demo"), and your RevOps team owns the scoring rules, so nothing changes without them knowing why. AI writes those explanations and the first-touch emails, but plain code checks every claim against your data before a rep or prospect sees it. If it can't prove a claim, it doesn't ship.</p>
+
+<p><b>What we build first.</b> The inbound side, in about four weeks. It's where the money is fastest: today a demo request waits 31 hours on average. We'll run the new score silently for two weeks alongside your reps, so they can check it before we route anything with it. Then routing goes live with a 15-minute clock on top-tier leads: if nobody touches it, Dana gets pinged and you see it in a weekly table by rep. That answers "who's sitting on leads" with facts, not anecdotes. Outbound comes second (weeks 7–10), built on the same data, so first touches reference something real about the account, such as their hiring or their pricing-page visits.</p>
+
+<p><b>Where we're pushing back.</b> Marketing asked that every content download go to an SDR. On last month's volume that means roughly {{ s.sdr12 }} leads a week for 3 SDRs, most of them people reading a report, not buying. Every download will still be captured, scored and credited to Marketing; only the ones that look like buyers go to an SDR (about {{ s.sdr13 }} a week). The rest get nurtured and move up automatically if they show real interest. We're also not promising "perfect" scores. We're promising that every score shows its reasons, reps can flag wrong ones in one click, and those flags change the rules within a week.</p>
+
+<p><b>What we need from you:</b> CRM admin access, an hour with RevOps to agree on field ownership, and your SDR manager's buy-in on the 15-minute rule.</p>
+</div>
+{% endblock %}

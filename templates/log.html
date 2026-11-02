@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Agent log · Ridgeline GTM Harness{% endblock %}
+{% block body %}
+<div class="eyebrow">Observability</div>
+<h1 class="page-title"><u>Every</u> step writes a trace</h1>
+<p class="lede">One log for every agent and rule set: what it did, which model and prompt version, the result, cost and latency. When a rep asks "why did I get this lead?", the answer is one click from here.</p>
+<div class="chips" style="margin-bottom:14px">
+  <a class="chip {{ 'on' if not agent }}" href="{{ url_for('agent_log') }}">All agents</a>
+  {% for a in agents %}<a class="chip {{ 'on' if agent == a }}" href="{{ url_for('agent_log', agent=a) }}">{{ a }}</a>{% endfor %}
+</div>
+<div class="card">
+  <div class="tbl-wrap"><table>
+    <tr><th>Time</th><th>Trace</th><th>Agent</th><th>What it did</th><th>Model · prompt</th><th>Result</th><th class="num">Cost</th><th class="num">Latency</th></tr>
+    {% for r in rows %}
+    <tr><td class="mono">{{ r.ts }}</td>
+      <td class="mono">{% if r.trace.startswith('tr_1') %}<a href="{{ url_for('lead', lead_id='L-' ~ r.trace[3:]) }}">{{ r.trace }}</a>{% elif r.trace.startswith('tr_d') %}<a href="{{ url_for('outbound', draft_id=r.trace[3:]) }}">{{ r.trace }}</a>{% else %}{{ r.trace }}{% endif %}</td>
+      <td>{{ r.agent }}</td><td>{{ r.action }}</td><td class="mono">{{ r.model_prompt }}</td>
+      <td><span class="pill {{ r.result.split()[0]|lower }}">{{ r.result }}</span></td>
+      <td class="num">${{ '%.3f'|format(r.cost) }}</td><td class="num">{{ r.latency_s }}s</td></tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Scoring prototype · Ridgeline GTM Harness{% endblock %}
+{% block body %}
+<div class="head-row">
+  <div>
+    <div class="eyebrow">Prototype · the piece that matters most</div>
+    <h1 class="page-title"><u>Trust</u>: a score a rep can argue with</h1>
+    <p class="lede">I prototyped scoring because every other step depends on it: routing, SLAs, outbound priority and the SDRs' willingness to use any of it. Ridgeline's reps already ignore one score. This one is rules, not a model, so every point traces to a field, a source and a config version, and the AI only writes the sentence a rep reads, under a check.</p>
+  </div>
+  <div class="btn-row">
+    <a class="btn red" href="{{ url_for('lead_new') }}">Score a new lead</a>
+    <a class="btn" href="{{ url_for('config') }}">View weights</a>
+  </div>
+</div>
+
+<div class="grid g3">
+  <div class="card"><h2>1 · Explainable</h2><p class="note" style="margin:0">Score = sum of named signals. Each reason cites a record field, its source and confidence. Unknown fields score 0 and are flagged, never guessed.</p></div>
+  <div class="card"><h2>2 · Versioned</h2><p class="note" style="margin:0">Weights live in <code>scoring_v1_3.json</code>, owned by RevOps. Every stored score carries its version, and any change is explained signal-by-signal against the prior version.</p></div>
+  <div class="card"><h2>3 · Checked AI</h2><p class="note" style="margin:0">The LLM writes the plain-English "why". Code verifies every sentence cites a real, non-empty field and every number appears in it. Fail → template reasons ship instead.</p></div>
+</div>
+
+<div class="card mt">
+  <h2>Sample records <small>12 form fills and signals, run through the full pipeline · click a row for its trace</small></h2>
+  <div class="tbl-wrap"><table>
+    <tr><th>Lead</th><th>Company</th><th>Source</th><th class="num">Fit</th><th class="num">Intent</th><th>v1.2 → v1.3</th><th>Owner</th><th>Why note</th><th>Flags</th></tr>
+    {% for l in leads %}
+    {% set res = l.data.result %}
+    <tr class="click" onclick="location='{{ url_for('lead', lead_id=l.id) }}'">
+      <td><a href="{{ url_for('lead', lead_id=l.id) }}">{{ l.name }}</a><span class="sub">{{ l.data.contact.title }}</span></td>
+      <td>{{ l.company if '.' not in l.company else ('Personal email' if 'gmail' in l.company else l.company) }}</td>
+      <td>{{ {'demo':'Demo','content':'Content','pricing_signal':'Pricing signal'}[l.source] }}</td>
+      <td class="num">{{ l.fit if l.fit is not none else '—' }}</td>
+      <td class="num">{{ l.intent if l.intent is not none else '—' }}</td>
+      <td>{% if l.old %}<span class="tier {{ l.old.tier }}">{{ l.old.tier }}</span> → {% endif %}<span class="tier {{ l.tier }}">{{ l.tier }}</span></td>
+      <td>{{ l.owner or '—' }}</td>
+      <td>{% if l.data.note and l.data.note.check %}<span class="pill {{ l.data.note.check.status }}">{{ l.data.note.check.status }}</span>{% elif l.data.note %}<span class="pill">template</span>{% else %}—{% endif %}</td>
+      <td class="note" style="margin:0">{{ (res.flags|join(', ')) if res and res.flags and l.data.junk == 'PASSED' else '' }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  <p class="note">What to look at: <a href="{{ url_for('lead', lead_id='L-1009') }}">Carlos Mendez</a> (the LLM invented a fleet size and the check blocked it), <a href="{{ url_for('lead', lead_id='L-1003') }}">Kevin Tran</a> (content download from IT: B under both versions, but for different reasons), <a href="{{ url_for('lead', lead_id='L-1012') }}">Megan Lee</a> (hot account, wrong persona: B, not A), <a href="{{ url_for('lead', lead_id='L-1002') }}">Dana Ortiz</a> (no form at all: the hybrid pricing-page play).</p>
+</div>
+
+<div class="grid g2 mt">
+  <div class="card">
+    <h2>Proof it doesn't flood the SDRs <small>{{ s.real }} simulated leads, same records, two configs</small></h2>
+    <table>
+      <tr><th></th><th class="num">v1.2</th><th class="num">v1.3</th></tr>
+      <tr><td>Leads routed to SDRs (A + B)</td><td class="num">{{ s.sdr12 }}</td><td class="num"><b>{{ s.sdr13 }}</b></td></tr>
+      <tr><td>…of which content-only</td><td class="num">{{ s.by_source.content.sdr12 }}</td><td class="num"><b>{{ s.by_source.content.sdr13 }}</b></td></tr>
+      <tr><td>Per SDR per day (3 SDRs, 5 days)</td><td class="num">{{ '%.1f'|format(s.sdr12/15) }}</td><td class="num"><b>{{ '%.1f'|format(s.sdr13/15) }}</b></td></tr>
+      <tr><td>Demo requests reaching an SDR</td><td class="num">{{ s.by_source.demo.sdr12 }}</td><td class="num"><b>{{ s.by_source.demo.sdr13 }}</b></td></tr>
+    </table>
+    <p class="note">Demo requests are untouched; the cut is almost entirely content downloads, which is where SDR "wrong" feedback came from.</p>
+  </div>
+  <div class="card">
+    <h2>Rep feedback loop <small>"if they're wrong twice…"</small></h2>
+    <table>
+      <tr><th>Version</th><th class="num">Right</th><th class="num">Wrong</th><th>Top wrong reason</th></tr>
+      {% for v in ['1.2','1.3'] %}
+      {% set rows = fb|selectattr('score_version','equalto',v)|list %}
+      {% set wrong = rows|selectattr('verdict','equalto','wrong')|list %}
+      <tr><td>v{{ v }}</td><td class="num">{{ rows|selectattr('verdict','equalto','right')|list|length }}</td><td class="num">{{ wrong|length }}</td><td>{{ (wrong|map(attribute='reason')|list|first) or '—' }}</td></tr>
+      {% endfor %}
+    </table>
+    <p class="note">Every "wrong" lands here with a reason. v1.3's content-download cut came straight from v1.2's top wrong reason. Rollout plan: v1.3 runs in shadow mode for 2 weeks (scored, not routed) and only goes live if Tier A precision ≥ 70%.</p>
+  </div>
+</div>
+
+<div class="card mt">
+  <h2>Use it as a service</h2>
+  <p class="note" style="margin-top:0">The same engine is exposed as JSON, so the CRM, n8n or a Clay table can call it.</p>
+<pre class="draft mono">curl -X POST {{ request.host_url }}api/score?version=1.3 -H 'Content-Type: application/json' -d '{
+  "contact": {"title": "Director of Dispatch"},
+  "company": {"segment": "3pl", "employees": 310, "fleet_size": 140, "tech_stack": "legacy_tms", "country": "US", "is_target": true},
+  "signals": {"form_type": "demo", "form_age_days": 0, "job_posts": 2, "job_post_age_days": 9}
+}'</pre>
+</div>
+{% endblock %}
