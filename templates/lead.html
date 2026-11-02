@@ -2,6 +2,8 @@
 {% set res = r.result %}
 {% block title %}{{ r.contact.name }} · Inbound trace{% endblock %}
 {% block body %}
+<div class="why"><div><b>This page answers</b>Why did this lead go to this rep?</div><div><b>Why it matters</b>When a rep asks "why did I get this?" or RevOps asks "why did this score change?", the answer is on one page: every step, every reason, every data source.</div></div>
+
 <div class="eyebrow">Inbound lead trace · tr_{{ r.id[-4:] }}</div>
 <h1 class="page-title"><u>Why</u>: did this lead go to {{ r.owner or 'nobody' }}?</h1>
 <p class="lede">Every step the harness took for this {{ 'signal' if r.form.form_type == 'pricing_signal' else 'form fill' }}, what it wrote to the CRM, and why. Routed in {{ '%.1f'|format(r.total_ms/1000) }} seconds{% if r.cost %}, ${{ '%.2f'|format(r.cost) }} in enrichment{% endif %}.{% if r.form.note %} {{ r.form.note }}{% endif %}</p>

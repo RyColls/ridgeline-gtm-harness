@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Start here · Ridgeline GTM Harness{% endblock %}
+{% block body %}
+<div class="eyebrow">Start here · 2-minute read</div>
+<h1 class="page-title"><u>The</u> short version</h1>
+<p class="lede" style="font-size:16px;color:var(--ink-2)">Ridgeline gets 900 leads a month and takes 31 hours to call them back. The reps don't trust the lead scores, so they ignore them. I designed one system that cleans each lead, scores it with reasons a rep can read, and gets it to the right rep in seconds. Then it keeps the scores honest using the reps' own feedback.</p>
+
+<div class="grid g3">
+  <div class="kpi hero"><div class="v">31 hrs → {{ s.median_a_min }} min</div><div class="l">Time to call a top lead back</div><div class="b">The lead is routed in under 10 seconds; the rest is the rep.</div></div>
+  <div class="kpi"><div class="v">{{ s.sdr12 }} → {{ s.sdr13 }}</div><div class="l">Leads per week sent to 3 SDRs</div><div class="b">Fewer, better leads. Demo requests are untouched.</div></div>
+  <div class="kpi"><div class="v">0</div><div class="l">Unchecked AI claims a rep sees</div><div class="b">AI writes the explanation; code checks every fact first.</div></div>
+</div>
+
+<h2 class="mt2" style="font-size:30px">The questions you'll ask</h2>
+<div class="qa">
+  <details open><summary><span class="qn">1</span>What's actually wrong at Ridgeline?</summary>
+    <p>It looks like five problems: slow follow-up, generic emails, missing data, duplicates and bad scores. It's really one chain. Missing and duplicate data make the scores wrong. Wrong scores teach reps to ignore them. Reps who ignore scores pick leads by gut and sit on the rest. That's the 31 hours.</p>
+    <p><b>So the first job is trust, not speed.</b> Fast routing of a lead nobody trusts just gets ignored faster.</p>
+    <a class="see" href="{{ url_for('design') }}#reframe">See the reasoning →</a></details>
+
+  <details><summary><span class="qn">2</span>Which motion did you pick, and why?</summary>
+    <p><b>Both, on one shared pipeline (hybrid).</b> Inbound and outbound need the same parts: a clean record, a score and an owner. Building them separately would recreate the "five tools that each think they're the truth" problem. The best signal also crosses both motions: a target account looking at the pricing page.</p>
+    <p><b>Inbound gets built first</b> because it's the quickest provable win. The leads already exist; they're just waiting 31 hours.</p>
+    <a class="see" href="{{ url_for('design') }}#motion">See the motion →</a></details>
+
+  <details><summary><span class="qn">3</span>Why did you prototype scoring and not something else?</summary>
+    <p>Everything else depends on it. Routing, the 15-minute alert and outbound priority all read the score. If reps don't believe the score, none of it matters, and the Head of SDR said they'll ignore it after two mistakes.</p>
+    <p>So the score is built to be argued with. Every point comes from one fact about the lead, the rep can see each fact, and RevOps owns the weights.</p>
+    <a class="see" href="{{ url_for('scoring') }}">See the prototype →</a></details>
+
+  <details><summary><span class="qn">4</span>How does a rep know why they got a lead?</summary>
+    <p>Every lead has a trace: each step it went through, the score with its reasons, where each piece of data came from, and who it was sent to and why. AI writes a 2–3 sentence summary, but code checks every fact in it against the record first. If the AI made something up, the rep never sees it.</p>
+    <p><b>Example:</b> the AI claimed Redwood Haul runs "about 300 trucks." We don't know their fleet size, so the note was blocked.</p>
+    <a class="see" href="{{ url_for('lead', lead_id='L-1009') }}">See that lead →</a></details>
+
+  <details><summary><span class="qn">5</span>Why say no to Marketing?</summary>
+    <p>Marketing wants every content download sent to an SDR. Run through the scoring on a normal week, that's about {{ s.sdr12 }} leads for 3 SDRs, and {{ s.by_source.content.sdr12 }} of them are people who just read a report. That flood is exactly why reps stopped trusting leads.</p>
+    <p><b>What Marketing still gets:</b> every download is captured, scored and credited to them. Only real buyers go to an SDR (about {{ s.sdr13 }} a week). The rest are nurtured and move up automatically if they show real interest.</p>
+    <a class="see" href="{{ url_for('design') }}#reqs">See every stakeholder ask →</a></details>
+
+  <details><summary><span class="qn">6</span>How does the CRO see who's sitting on leads?</summary>
+    <p>Each top lead starts a 15-minute clock when it's assigned. If nobody calls or emails in time, the SDR manager is alerted and the miss is logged against that rep. A weekly table shows each rep's leads, response time and misses. Facts, not anecdotes.</p>
+    <a class="see" href="{{ url_for('command') }}">See the command center →</a></details>
+
+  <details><summary><span class="qn">7</span>Where is AI used, and why not more?</summary>
+    <p><b>Rules make decisions; AI writes words.</b> Scores, routing and deadlines must be the same every time and explainable to RevOps, so they're plain rules. AI does the work rules can't: writing the plain-English "why" for reps, drafting outbound emails and researching accounts. Each AI output passes a code check before anyone sees it.</p>
+    <a class="see" href="{{ url_for('design') }}#ai">See where AI fits →</a></details>
+
+  <details><summary><span class="qn">8</span>How do you stop outbound from being wrong or generic?</summary>
+    <p>Every draft must point to something real about the account, like their dispatcher job posts or pricing-page visits, and may only quote approved customer results. A checker tests each draft. Small problems (a blank name field, pricing talk) get fixed automatically. A made-up fact blocks the email for a person to review.</p>
+    <a class="see" href="{{ url_for('outbound') }}">See the review queue →</a></details>
+
+  <details><summary><span class="qn">9</span>What gets built first, and how long does it take?</summary>
+    <p>Weeks 1–2: clean up the CRM and duplicates. Weeks 2–4: run the new score quietly next to the reps (it's scored and shown but doesn't route) so they can check it. Weeks 4–6: routing and the 15-minute alert go live. Weeks 7–10: outbound, built on the same pipeline.</p>
+    <a class="see" href="{{ url_for('design') }}#deps">See the build order →</a></details>
+</div>
+
+<h2 class="mt2" style="font-size:30px">How to read this site</h2>
+<div class="tbl-wrap"><table class="design-tbl">
+  <tr><th>Tab</th><th>What it answers</th></tr>
+  <tr><td><a href="{{ url_for('design') }}">Design</a></td><td>How the whole system works and why it's built this way. Each section opens with a plain-English summary.</td></tr>
+  <tr><td><a href="{{ url_for('command') }}">Command center</a></td><td>"Is it working?" One week of leads, scored by the real engine.</td></tr>
+  <tr><td><a href="{{ url_for('scoring') }}">Scoring prototype</a></td><td>"Why should a rep trust this score?" Twelve sample leads with their reasons.</td></tr>
+  <tr><td><a href="{{ url_for('lead', lead_id='L-1001') }}">Inbound trace</a></td><td>"Why did this lead go to this rep?" One lead, every step.</td></tr>
+  <tr><td><a href="{{ url_for('outbound') }}">Outbound review</a></td><td>"What stops a bad email?" The checks every draft must pass.</td></tr>
+  <tr><td><a href="{{ url_for('agent_log') }}">Agent log</a></td><td>"What did the system do, and what did it cost?"</td></tr>
+  <tr><td><a href="{{ url_for('note') }}">Client note</a></td><td>The half-page letter to Ridgeline's CRO.</td></tr>
+</table></div>
+<p class="note">Ridgeline is fictional. The scoring, routing and checks are real code; data providers and AI calls are mocked, and the week of leads is simulated. Each page says which is which.</p>
+{% endblock %}

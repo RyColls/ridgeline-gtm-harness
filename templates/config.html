@@ -2,6 +2,8 @@
 {% block title %}Scoring config · Ridgeline GTM Harness{% endblock %}
 {% set cur = versions[-1] %}{% set prev = versions[-2] %}
 {% block body %}
+<div class="why"><div><b>This page answers</b>What exactly is the scoring model?</div><div><b>Why it matters</b>This page is the whole model. RevOps owns it, every change is written down, and nothing changes without them.</div></div>
+
 <div class="eyebrow">Prototype · scoring config</div>
 <h1 class="page-title"><u>Weights</u>: no black box</h1>
 <p class="lede">The whole model is this page. It lives in <code>harness/config/scoring_v{{ cur.version|replace('.','_') }}.json</code>, RevOps owns it, and every stored score records which version produced it. Changed weights are highlighted against v{{ prev.version }}.</p>

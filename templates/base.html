@@ -12,6 +12,7 @@
 <header class="topbar"><div class="inner">
   <a class="brand" href="{{ url_for('command') }}">Ridgeline GTM Harness</a>
   <nav class="nav">
+    <a href="{{ url_for('start') }}" class="{{ 'on' if nav=='start' }}">Start here</a>
     <a href="{{ url_for('design') }}" class="{{ 'on' if nav=='design' }}">Design</a>
     <a href="{{ url_for('command') }}" class="{{ 'on' if nav=='command' }}">Command center</a>
     <a href="{{ url_for('scoring') }}" class="{{ 'on' if nav in ('scoring','config','lead_new') }}">Scoring prototype</a>

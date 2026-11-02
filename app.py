@@ -86,6 +86,11 @@ def command():
     return render_template("command.html", s=s, leads=leads, log=log, ob=ob, breach=breach)
 
 
+@app.route("/start")
+def start():
+    return render_template("start.html", s=summary(synth_rows()))
+
+
 @app.route("/design")
 def design():
     s = summary(synth_rows())

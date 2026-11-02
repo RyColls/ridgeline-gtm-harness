@@ -1,0 +1,102 @@
+<title>Ridgeline GTM Harness</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;500&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* Single light "paper and ink" look by choice: colors are all set explicitly, so it reads the same on either host theme. */
+:root { color-scheme: light; }
+/*CSS*/
+body { background: var(--bg); color: var(--ink); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 11; background: var(--ink); }
+.topbar { top: env(safe-area-inset-top, 0px); }
+.topbar .inner { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.grid > *, .doc-layout > * { min-width: 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); padding: 16px; overflow-x: auto; }
+.diagram svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+.scenarios { display: grid; gap: 10px; max-width: 820px; }
+.scenario { display: grid; grid-template-columns: 1fr auto; gap: 2px 16px; background: var(--card); border: 1px solid var(--line);
+  border-left: 3px solid var(--red); padding: 14px 16px; text-decoration: none; color: var(--ink); }
+.scenario:hover { background: #faf9f6; }
+.scenario b { font-size: 14px; }
+.scenario span { font-size: 12px; color: var(--muted); grid-column: 1; }
+.scenario .go { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-family: var(--display); font-size: 15px; letter-spacing: .06em; color: var(--red); }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.fb-local td { background: var(--amber-soft); }
+</style>
+
+<header class="topbar"><div class="inner">
+  <a class="brand" href="#start">Ridgeline GTM Harness</a>
+  <nav class="nav">
+    <a href="#start" data-nav="start">Start here</a>
+    <a href="#design" data-nav="design">Design</a>
+    <a href="#command" data-nav="command">Command center</a>
+    <a href="#scoring" data-nav="scoring">Scoring prototype</a>
+    <a href="#lead-L-1001" data-nav="lead">Inbound trace</a>
+    <a href="#outbound" data-nav="outbound">Outbound review</a>
+    <a href="#log" data-nav="log">Agent log</a>
+    <a href="#note" data-nav="note">Client note</a>
+  </nav>
+</div></header>
+
+<main class="wrap">
+<!--VIEWS-->
+<div class="foot">Ridgeline Freight Software is fictional. A static render of one run of the Python · Flask · SQLite harness: scoring, routing, checks and storage are real code; data providers and LLM calls are mocked.</div>
+</main>
+
+<script>
+(function () {
+  var views = {};
+  document.querySelectorAll('section.view').forEach(function (s) { views[s.dataset.view] = s; });
+  var navFor = function (v) {
+    if (v.indexOf('lead-') === 0) return 'lead';
+    if (v.indexOf('outbound') === 0) return 'outbound';
+    if (v.indexOf('log') === 0) return 'log';
+    if (v === 'config' || v === 'try') return 'scoring';
+    return v;
+  };
+  var current = null;
+  function show() {
+    var h = decodeURIComponent((location.hash || '').slice(1));
+    var target = null, view = h;
+    if (!views[view]) {
+      target = h ? document.getElementById(h) : null;
+      var holder = target ? target.closest('section.view') : null;
+      view = holder ? holder.dataset.view : (current || 'start');
+    }
+    if (view !== current) {
+      Object.keys(views).forEach(function (k) { views[k].hidden = k !== view; });
+      current = view;
+    }
+    var n = navFor(view);
+    document.querySelectorAll('.nav a').forEach(function (a) { a.classList.toggle('on', a.dataset.nav === n); });
+    if (target) { target.scrollIntoView(); } else { window.scrollTo(0, 0); }
+  }
+  window.addEventListener('hashchange', show);
+  show();
+
+  // Rep feedback: kept in this browser only (the live app writes it to SQLite).
+  function load() { try { return JSON.parse(localStorage.getItem('rgh-feedback') || '[]'); } catch (e) { return []; } }
+  function save(list) { try { localStorage.setItem('rgh-feedback', JSON.stringify(list)); } catch (e) {} }
+  function addRow(form, item) {
+    var card = form.parentNode, table = card.querySelector('table');
+    if (!table) { table = document.createElement('table'); table.className = 'mt'; form.after(table); }
+    var tr = document.createElement('tr'); tr.className = 'fb-local';
+    var ok = item.verdict === 'right';
+    tr.innerHTML = '<td><span class="pill ' + (ok ? 'ok' : 'bad') + '">' + item.verdict + '</span></td><td>You<span class="sub"></span></td><td class="mono">this browser</td>';
+    tr.querySelector('.sub').textContent = item.reason || '—';
+    table.prepend(tr);
+  }
+  var forms = {};
+  document.querySelectorAll('form.fb').forEach(function (f) {
+    forms[f.dataset.lead] = f;
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = e.submitter, input = f.querySelector('input[name=reason]');
+      var item = { lead: f.dataset.lead, verdict: btn ? btn.value : 'right', reason: input.value };
+      var list = load(); list.push(item); save(list); addRow(f, item); input.value = '';
+    });
+  });
+  load().forEach(function (item) { if (forms[item.lead]) addRow(forms[item.lead], item); });
+})();
+</script>

@@ -23,6 +23,7 @@
 <!-- 0 -->
 <section class="sec" id="reframe">
   <h2><span class="n">0</span>The reframe: it's a trust problem, not a speed problem</h2>
+  <div class="inshort"><b>In short</b>Ridgeline's five complaints are one problem. The data is messy, so scores are wrong, so reps stop trusting leads, so they respond slowly. Fix trust first and speed follows.</div>
   <p>The kickoff list reads like five separate problems: slow speed-to-lead, generic outbound, low enrichment, duplicates, untrusted scores. They're one loop:</p>
   <div class="callout">Bad data <b>(30% enriched, 22% duplicates)</b> → wrong scores → reps stop trusting the system → reps cherry-pick and sit on leads → <b>31-hour speed-to-lead</b> → no feedback reaches the scores → scores stay wrong.</div>
   <p>Making routing faster without fixing trust just delivers untrusted leads faster. So the design is ordered around trust: one clean record first, a score anyone can read and argue with, an SLA that makes rep behavior visible, and a feedback loop that turns "this is wrong" into a rule change within a week. Speed falls out of that.</p>
@@ -37,6 +38,7 @@
 <!-- 1 -->
 <section class="sec" id="motion">
   <h2><span class="n">1</span>Motion: hybrid, built inbound-first</h2>
+  <div class="inshort"><b>In short</b>Inbound and outbound need the same parts (clean record, score, owner), so I built one pipeline for both. Inbound goes first because 900 leads a month waiting 31 hours is the fastest money to recover.</div>
   <p><b>Hybrid</b>, because Ridgeline's strongest buying signal crosses the two motions: a named target account visiting the pricing page is better intent than most form fills, and today nobody acts on it. Inbound and outbound also need exactly the same parts (clean record, enrichment, score, owner), so building them separately would recreate the "five tools" problem.</p>
   <p><b>Inbound first</b>, because it's the fastest provable win: 900 form fills a month and a 31-hour baseline means a measurable result in weeks. It also forces the shared spine (enrichment, dedupe, scoring, CRM writeback) to exist, which outbound then reuses.</p>
   <table class="design-tbl">
@@ -51,6 +53,7 @@
 <!-- 2 -->
 <section class="sec" id="process">
   <h2><span class="n">2</span>Process model: trigger to outcome</h2>
+  <div class="inshort"><b>In short</b>This is the map: what starts a lead, every decision it passes through, and where it ends up. Every arrow leaves a record, so anyone can see why something happened.</div>
   <p>Actors are the lanes. Diamonds are decision points; every handoff between lanes writes a trace row.</p>
   <pre class="mermaid">
 flowchart TB
@@ -123,6 +126,7 @@ flowchart TB
 <!-- 3 -->
 <section class="sec" id="workflows">
   <h2><span class="n">3</span>Workflows: in, what happens, out, owner, failure</h2>
+  <div class="inshort"><b>In short</b>Each step in one table: what goes in, what comes out, who owns it, and what happens when it breaks. The rule: a real buyer is never stuck, and a wrong email never goes out.</div>
   <div class="tbl-wrap"><table class="design-tbl">
     <tr><th>Step</th><th>Input</th><th>What happens</th><th>Output</th><th>Owner</th><th>Depends on</th><th>If it fails</th></tr>
     <tr><td>1 · Intake</td><td>Form payload or pricing-page event</td><td>Validate, idempotency key (form ID + email), drop resubmits within 24 h, put on queue</td><td>Raw lead event</td><td>Intake service</td><td>Form webhook, web analytics</td><td>Webhook retries 3× with backoff; dead-letter queue; hourly reconcile against form tool</td></tr>
@@ -146,6 +150,7 @@ flowchart TB
 <!-- 4 -->
 <section class="sec" id="data">
   <h2><span class="n">4</span>Data flow and source of truth</h2>
+  <div class="inshort"><b>In short</b>Five tools were fighting over the same data. Now each piece of data has one home and one system allowed to change it, so nothing gets overwritten.</div>
   <pre class="mermaid">
 flowchart LR
   FORMS["Form tool"] -- "webhook, real-time" --> H
@@ -179,6 +184,7 @@ flowchart LR
 <!-- 5 -->
 <section class="sec" id="deps">
   <h2><span class="n">5</span>Dependencies and build order</h2>
+  <div class="inshort"><b>In short</b>What has to be true before each piece can work, and the order to build it in. Cleaning duplicates comes before routing, because routing a duplicate sends it to the wrong rep.</div>
   <h3>What depends on what</h3>
   <table class="design-tbl">
     <tr><th>Dependency</th><th>Type</th><th>What breaks downstream if it fails</th><th>Mitigation</th></tr>
@@ -203,6 +209,7 @@ flowchart LR
 <!-- 6 -->
 <section class="sec" id="reqs">
   <h2><span class="n">6</span>Requirements: asks → testable requirements → metrics</h2>
+  <div class="inshort"><b>In short</b>Each person's ask, turned into something we can build and measure. Three get a yes, two get a yes with changes, and one (route every download to SDRs) gets a no, with numbers to back it up.</div>
   <div class="tbl-wrap"><table class="design-tbl">
     <tr><th>Who · ask</th><th>Technical requirement</th><th>Metric (baseline → target)</th><th>Verdict</th></tr>
     <tr><td>CRO<span class="sub" style="font-weight:400">"Which reps are sitting on leads"</span></td><td>Every A/B lead starts an SLA timer at routing (A 15 min, B 60 min). A miss escalates to the SDR manager and logs a breach against the owner. Weekly rep table: assigned, median first touch, breaches.</td><td>Median Tier A speed-to-lead: 31 h → under 10 min. A leads touched within SLA ≥ 90%.</td><td><span class="verdict yes">Yes</span></td></tr>
@@ -222,6 +229,7 @@ flowchart LR
 <!-- 7 -->
 <section class="sec" id="ai">
   <h2><span class="n">7</span>Where AI fits, and where it doesn't</h2>
+  <div class="inshort"><b>In short</b>AI writes words; rules make decisions. Scores and routing have to be explainable and the same every time, so they're rules. AI writes the sentences a rep reads, and code checks every claim before anyone sees it.</div>
   <table class="design-tbl">
     <tr><th>Step</th><th>Approach</th><th>Why</th></tr>
     <tr><td>Junk filter, dedupe, routing, SLA</td><td>Rules</td><td>Must be instant, free, auditable and identical every time.</td></tr>
@@ -238,6 +246,7 @@ flowchart LR
 <!-- 8 -->
 <section class="sec" id="failures">
   <h2><span class="n">8</span>What-ifs, prepared</h2>
+  <div class="inshort"><b>In short</b>The questions you're likely to ask, answered ahead of time: a provider going down, the ask changing, volume tripling.</div>
   <table class="design-tbl">
     <tr><th>Scenario</th><th>What happens</th></tr>
     <tr><td>Provider B goes down</td><td>Waterfall skips it after 2 timeouts (circuit breaker, retry every 5 min). Records score on known fields, flagged "partial", routed anyway. Nightly job re-enriches partials. Dashboard shows the component as degraded.</td></tr>
@@ -252,6 +261,7 @@ flowchart LR
 <!-- 9 -->
 <section class="sec" id="assumptions">
   <h2><span class="n">9</span>Assumptions and what I changed</h2>
+  <div class="inshort"><b>In short</b>What I assumed where the brief was silent, what I added that nobody asked for, and why.</div>
   <ul>
     <li>CRM is HubSpot (the design is identical on Salesforce). Forms post webhooks. Sequencer is Outreach or Apollo.</li>
     <li>Target accounts have one named owner; non-target leads route by territory (US West / Central / East + Canadian provinces).</li>
