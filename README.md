@@ -1,5 +1,7 @@
 # Ridgeline GTM Harness
 
+**👉 [Open the deliverable](https://claude.ai/artifact/7YodKDcXurNmL8Mra5NQST)**: the full submission as one web page. Start with the **Start here** tab.
+
 Domestique GTM Engineer take-home. One web app holds the whole submission:
 
 | Page | What it is |
